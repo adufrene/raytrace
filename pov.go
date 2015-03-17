@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"errors"
+	"github.com/go-gl/mathgl/mgl64"
 	"io"
 	"math"
 	"strconv"
@@ -21,6 +22,10 @@ var (
 	eofErr = errors.New("Unexpected EOF")
 )
 
+const (
+	degToRad = math.Pi / 180
+)
+
 type castable interface {
 	Hit(r Ray) (uint8, float64, float64)
 	Color() fColor
@@ -29,7 +34,7 @@ type castable interface {
 }
 
 type object struct {
-	transforms Mat4
+	transforms mgl64.Mat4
 	pigment    fColor
 	finish     finish
 }
@@ -146,7 +151,7 @@ func (efc *errFloatConv) convert(s string) float64 {
 }
 
 func (obj *object) init() {
-	obj.transforms = CreateScale(1, 1, 1)
+	obj.transforms = mgl64.Ident4()
 	obj.finish.ambient = 0.1
 	obj.finish.diffuse = 0.6
 	obj.finish.specular = 0.0
@@ -528,16 +533,16 @@ func (obj *object) finishObject(scanner *bufio.Scanner) error {
 		switch scanner.Text() {
 		case "translate":
 			err, vec = parseVector(scanner)
-			obj.transforms = obj.transforms.Mult(CreateTranslate(vec.X, vec.Y, vec.Z))
+			obj.transforms = obj.transforms.Mul4(mgl64.Translate3D(vec.X, vec.Y, vec.Z))
 		case "rotate":
 			err, vec = parseVector(scanner)
-			obj.transforms = obj.transforms.Mult(
-				CreateRotationX(vec.X)).Mult(
-				CreateRotationY(vec.Y)).Mult(
-				CreateRotationZ(vec.Z))
+			obj.transforms = obj.transforms.Mul4(
+				mgl64.HomogRotate3DZ(degToRad * vec.Z).Mul4(
+					mgl64.HomogRotate3DY(degToRad * vec.Y)).Mul4(
+					mgl64.HomogRotate3DX(degToRad * vec.X)))
 		case "scale":
 			err, vec = parseVector(scanner)
-			obj.transforms = obj.transforms.Mult(CreateScale(vec.X, vec.Y, vec.Z))
+			obj.transforms = obj.transforms.Mul4(mgl64.Scale3D(vec.X, vec.Y, vec.Z))
 		case "pigment":
 			err, obj.pigment = parsePigment(scanner)
 		case "finish":
@@ -597,9 +602,11 @@ func (obj object) transform(pt Point3D) Point3D {
 
 func (s sphere) Hit(r Ray) (count uint8, t1, t2 float64) {
 	/* get inverse sphere transform matrix, then apply to ray */
-	rToS := r.Origin.Sub(s.transform(s.center))
-	A := r.Direction.Dot(r.Direction)
-	B := 2 * rToS.Dot(r.Direction)
+	invM := s.transforms.Inv()
+	transRay := Ray{Origin: r.Origin.Transform(invM), Direction: r.Direction.Transform(invM).Normalize()}
+	rToS := transRay.Origin.Sub(s.transform(s.center))
+	A := transRay.Direction.Dot(transRay.Direction)
+	B := 2 * rToS.Dot(transRay.Direction)
 	C := rToS.Dot(rToS) - math.Pow(s.radius, 2)
 	dtmt := math.Pow(B, 2) - 4*A*C
 	if dtmt < 0 {

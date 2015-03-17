@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/go-gl/mathgl/mgl64"
 	"math"
 )
 
@@ -8,10 +9,6 @@ var (
 	xAxis = Vector3D{X: 1, Y: 0, Z: 0}
 	yAxis = Vector3D{X: 0, Y: 1, Z: 0}
 	zAxis = Vector3D{X: 0, Y: 0, Z: 1}
-)
-
-const (
-	degToRad = math.Pi / 180
 )
 
 type Ray struct {
@@ -27,109 +24,24 @@ type Vector3D struct {
 	X, Y, Z float64
 }
 
-type Mat4 [4][4]float64
-
 func dot(row1, row2 [4]float64) float64 {
 	return row1[0]*row2[0] + row1[1]*row2[1] + row1[2]*row2[2] + row1[3]*row2[3]
 }
 
-func (pt Point3D) Transform(m Mat4) (ret Point3D) {
+func (pt Point3D) Transform(m mgl64.Mat4) (ret Point3D) {
 	ptRow := [4]float64{pt.X, pt.Y, pt.Z, 1}
-	ret.X = dot(m[0], ptRow)
-	ret.Y = dot(m[1], ptRow)
-	ret.Z = dot(m[2], ptRow)
+	ret.X = dot([4]float64{m[0*4+0], m[1*4+0], m[2*4+0], m[3*4+0]}, ptRow)
+	ret.Y = dot([4]float64{m[0*4+1], m[1*4+1], m[2*4+1], m[3*4+1]}, ptRow)
+	ret.Z = dot([4]float64{m[0*4+2], m[1*4+2], m[2*4+2], m[3*4+2]}, ptRow)
 	return
 }
 
-func (m Mat4) Mult(m2 Mat4) (ret Mat4) {
-	ret[0][0] = dot(m[0], [4]float64{m2[0][0], m2[1][0], m2[2][0], m2[3][0]})
-	ret[0][1] = dot(m[0], [4]float64{m2[0][1], m2[1][1], m2[2][1], m2[3][1]})
-	ret[0][2] = dot(m[0], [4]float64{m2[0][2], m2[1][2], m2[2][2], m2[3][2]})
-	ret[0][3] = dot(m[0], [4]float64{m2[0][3], m2[1][3], m2[2][3], m2[3][3]})
-
-	ret[1][0] = dot(m[1], [4]float64{m2[0][0], m2[1][0], m2[2][0], m2[3][0]})
-	ret[1][1] = dot(m[1], [4]float64{m2[0][1], m2[1][1], m2[2][1], m2[3][1]})
-	ret[1][2] = dot(m[1], [4]float64{m2[0][2], m2[1][2], m2[2][2], m2[3][2]})
-	ret[1][3] = dot(m[1], [4]float64{m2[0][3], m2[1][3], m2[2][3], m2[3][3]})
-
-	ret[2][0] = dot(m[2], [4]float64{m2[0][0], m2[1][0], m2[2][0], m2[3][0]})
-	ret[2][1] = dot(m[2], [4]float64{m2[0][1], m2[1][1], m2[2][1], m2[3][1]})
-	ret[2][2] = dot(m[2], [4]float64{m2[0][2], m2[1][2], m2[2][2], m2[3][2]})
-	ret[2][3] = dot(m[2], [4]float64{m2[0][3], m2[1][3], m2[2][3], m2[3][3]})
-
-	ret[3][0] = dot(m[3], [4]float64{m2[0][0], m2[1][0], m2[2][0], m2[3][0]})
-	ret[3][1] = dot(m[3], [4]float64{m2[0][1], m2[1][1], m2[2][1], m2[3][1]})
-	ret[3][2] = dot(m[3], [4]float64{m2[0][2], m2[1][2], m2[2][2], m2[3][2]})
-	ret[3][3] = dot(m[3], [4]float64{m2[0][3], m2[1][3], m2[2][3], m2[3][3]})
+func (vec Vector3D) Transform(m mgl64.Mat4) (ret Vector3D) {
+	vecRow := [4]float64{vec.X, vec.Y, vec.Z, 1}
+	ret.X = dot([4]float64{m[0*4+0], m[1*4+0], m[2*4+0], m[3*4+0]}, vecRow)
+	ret.Y = dot([4]float64{m[0*4+1], m[1*4+1], m[2*4+1], m[3*4+1]}, vecRow)
+	ret.Z = dot([4]float64{m[0*4+2], m[1*4+2], m[2*4+2], m[3*4+2]}, vecRow)
 	return
-}
-
-func CreateIdentity() (ret Mat4) {
-	ret[0][0] = 1
-	ret[1][1] = 1
-	ret[2][2] = 1
-	ret[3][3] = 1
-	return
-}
-
-func CreateTranslate(x, y, z float64) Mat4 {
-	ret := CreateIdentity()
-	ret[0][3] = x
-	ret[1][3] = y
-	ret[2][3] = z
-	return ret
-}
-
-func CreateScale(x, y, z float64) (ret Mat4) {
-	ret[0][0] = x
-	ret[1][1] = y
-	ret[2][2] = z
-	ret[3][3] = 1
-	return
-}
-
-func CreateRotationX(degrees float64) Mat4 {
-	ret := CreateIdentity()
-	radAngle := degrees * degToRad
-
-	ret[1][1] = math.Cos(radAngle)
-	ret[1][2] = -math.Sin(radAngle)
-
-	ret[2][1] = math.Sin(radAngle)
-	ret[2][2] = math.Cos(radAngle)
-
-	return ret
-}
-
-func CreateRotationY(degrees float64) Mat4 {
-	ret := CreateIdentity()
-	radAngle := degrees * degToRad
-
-	ret[0][0] = math.Cos(radAngle)
-	ret[0][2] = math.Sin(radAngle)
-
-	ret[2][0] = -math.Sin(radAngle)
-	ret[2][2] = math.Cos(radAngle)
-
-	return ret
-}
-
-func CreateRotationZ(degrees float64) Mat4 {
-	ret := CreateIdentity()
-	radAngle := degrees * degToRad
-
-	ret[0][0] = math.Cos(radAngle)
-	ret[0][1] = -math.Sin(radAngle)
-
-	ret[1][0] = math.Sin(radAngle)
-	ret[1][1] = math.Cos(radAngle)
-
-	return ret
-}
-
-func (m Mat4) Inverse() Mat4 {
-	// Inverse!
-	return m
 }
 
 func CreateRay(pt1, pt2 Point3D) Ray {

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	//	"github.com/go-gl/mathgl/mgl64"
 	"image"
 	"image/png"
 	"math"
@@ -10,7 +11,8 @@ import (
 
 var (
 	/* For chromebook, save to downloads so file can be viewed from chromeos */
-	filename = os.Getenv("HOME") + "/Downloads/trace.png"
+	//	filename = os.Getenv("HOME") + "/Downloads/trace.png"
+	filename = "trace.png"
 
 	imgWidth  = 640
 	imgHeight = 480
@@ -29,13 +31,6 @@ var (
 )
 
 func main() {
-	pt := Point3D{X: 1, Y: 1, Z: 1}
-	pt = pt.Transform(CreateScale(2, 3, 4))
-	pt = pt.Transform(CreateTranslate(-5, -6, -7))
-
-	fmt.Println("New Point:", pt)
-	return
-
 	args := os.Args[1:]
 	if len(args) == 0 {
 		fmt.Println("missing .pov file argument")
