@@ -4,15 +4,16 @@ import (
 	"fmt"
 	//	"github.com/go-gl/mathgl/mgl64"
 	"image"
-	"image/png"
+	"image/jpeg"
 	"math"
 	"os"
+	"strings"
 )
 
 var (
 	/* For chromebook, save to downloads so file can be viewed from chromeos */
-	//	filename = os.Getenv("HOME") + "/Downloads/trace.png"
-	filename = "rtrace.png"
+	fileDir = os.Getenv("HOME") + "/Downloads/"
+	ext     = ".jpg"
 
 	imgWidth  = 640
 	imgHeight = 480
@@ -37,7 +38,9 @@ func main() {
 		return
 	}
 
-	povFile, err := os.Open(args[0])
+	filename := args[0]
+
+	povFile, err := os.Open(filename)
 	defer povFile.Close()
 	if err == nil {
 		err = parsePOV(povFile)
@@ -54,7 +57,7 @@ func main() {
 
 	xStart := eye.location.Translate(eye.right.Scale(-1))
 	yStart := eye.location.Translate(eye.up.Scale(-1))
-	imgPlane := eye.lookAt.Sub(eye.location).Normalize()
+	imgPlane := eye.lookAt.Sub(eye.location).Normalize().Scale(2)
 
 	currX := xStart
 	for x := 0; x < imgWidth; x++ {
@@ -69,7 +72,15 @@ func main() {
 		currX = currX.Translate(xTrans)
 	}
 
-	file, err := os.Create(filename)
+	splitString := strings.Split(filename, "/")
+	name := splitString[len(splitString)-1]
+	if strings.HasSuffix(name, ".pov") {
+		dotSplit := strings.Split(name, ".")
+		name = strings.Join(dotSplit[:len(dotSplit)-1], ".")
+	}
+	outFile := fileDir + name + ext
+	file, err := os.Create(outFile)
+
 	if err != nil {
 		panic(err)
 	}
@@ -77,7 +88,7 @@ func main() {
 		file.Close()
 	}()
 
-	err = png.Encode(file, img)
+	err = jpeg.Encode(file, img, nil)
 	if err != nil {
 		panic(err)
 	}
@@ -89,32 +100,62 @@ func castRay(ray Ray, depth int) (bool, fColor) {
 	}
 
 	if count, t1, _, ndx := hitAnything(ray); count > 0 {
+		obj := objects[ndx]
 		pxlClr := fColor{}
+		origPt := ray.PointAt(t1)
+		interPt := ray.PointAt(t1 - 0.01)
 		for i := range lights {
 			light := lights[i]
-			interPt := ray.PointAt(t1 - 0.01)
 			if !isShadowed(interPt, light, ndx) {
-				normal := objects[ndx].Normal(interPt)
-				reflection := ray.Direction.Sub(normal.Scale(2 * ray.Direction.Dot(normal)))
-				pxlClr = pxlClr.Add(calcColor(objects[ndx], light, interPt, eye.location))
-				if reflect, color := castRay(Ray{interPt, reflection.Normalize()}, depth+1); reflect {
-					rScale := objects[ndx].Finish().reflection
-					pxlClr = pxlClr.Add(color.Scale(rScale))
+				pxlClr = pxlClr.Add(calcColor(obj, light, interPt, eye.location))
+				normal := obj.Normal(interPt)
+				if obj.Finish().reflection > 0 {
+					reflection := ray.Direction.Sub(normal.Scale(2 * ray.Direction.Dot(normal)))
+					if reflect, color := castRay(Ray{interPt, reflection.Normalize()}, depth+1); reflect {
+						pxlClr = pxlClr.Add(color.Scale(obj.Finish().reflection))
+					}
 				}
-				//				if objects[ndx].Material().Ambient.A < float64(1) {
-				//					/*TODO: calc dot product instead of sin */
-				//					refract := Ray{Origin: ray.PointAt(t2 + 0.01), Direction: ray.Direction}
-				//					_, refractColor := castRay(refract, depth+1)
-				//					pxlClr = pxlClr.Scale(objects[ndx].Material().Ambient.A).Add(refractColor.Scale(1 - objects[ndx].Material().Ambient.A))
-				//				}
+				if obj.Finish().refraction > 0 {
+					// Assuming non object material is air w/ ior=1
+					var internal bool
+					var refractRay Ray
+					//					internal, refractRay = calcRefractRay(ray, obj, origPt, 1, 1)
+					if ray.Direction.Dot(normal) > 0 { // We are exiting the object
+						internal, refractRay = calcRefractRay(ray, obj, origPt, obj.Finish().ior, 1)
+					} else { // We are entering the object
+						internal, refractRay = calcRefractRay(ray, obj, origPt, 1, obj.Finish().ior)
+					}
+					if !internal {
+						if refract, color := castRay(refractRay, depth+1); refract {
+							pxlClr = pxlClr.Add(color.Scale(obj.Finish().refraction))
+						}
+					}
+				}
 			} else {
-				pxlClr = pxlClr.Add(light.color.Mult(objects[ndx].Color().
-					Scale(objects[ndx].Finish().ambient)))
+				pxlClr = pxlClr.Add(light.color.Mult(obj.Color().
+					Scale(obj.Finish().ambient)))
 			}
 		}
 		return true, pxlClr
 	}
 	return false, bkgndColor
+}
+
+func calcRefractRay(initialRay Ray, obj castable, origPt Point3D,
+	n1, n2 float64) (internalReflection bool, refractRay Ray) {
+	// (n_1 ( d - n ( d . n)) / n_2) - (n * sqrt( 1 - ( n_1^2 ( 1 - ( d . n)^2) / n_2^2))
+	normal := obj.Normal(origPt)
+	dDotN := initialRay.Direction.Dot(normal)
+	sqrtComp := math.Pow(n1, 2) * (1 - math.Pow(dDotN, 2)) / math.Pow(n2, 2)
+	if sqrtComp > 1 {
+		return true, Ray{}
+	}
+	refract := initialRay.Direction.Sub(normal.Scale(
+		dDotN)).Scale(n1 / n2).Sub(
+		normal.Scale(math.Sqrt(1 - sqrtComp))).Normalize()
+	// Make ray start w/in object
+	return false, Ray{Origin: origPt.Translate(refract.Scale(0.01)),
+		Direction: refract}
 }
 
 func isShadowed(pt Point3D, light light, objNdx int) bool {

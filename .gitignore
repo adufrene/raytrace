@@ -27,5 +27,8 @@ _testmain.go
 *.prof
 
 trace
+rtrace
+rayTrace
 *.png
 *.jpeg
+*.jpg

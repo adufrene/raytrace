@@ -437,7 +437,7 @@ func parseScale(scanner *bufio.Scanner) (error, Vector3D) {
 func parsePigment(scanner *bufio.Scanner) (error, fColor) {
 	if !scanner.Scan() || scanner.Text() != "{" ||
 		!scanner.Scan() || scanner.Text() != "color" ||
-		!scanner.Scan() || scanner.Text() != "rgb" {
+		!scanner.Scan() || (scanner.Text() != "rgb" && scanner.Text() != "rgbf") {
 		return errors.New("Invalid pigment structure"), fColor{}
 	}
 	err, c := parseColor(scanner)
@@ -449,6 +449,7 @@ func parsePigment(scanner *bufio.Scanner) (error, fColor) {
 
 func parseColor(scanner *bufio.Scanner) (error, fColor) {
 	c := fColor{}
+	format := scanner.Text()
 	es := errScanner{scanner: scanner, err: nil}
 	text := es.Text()
 
@@ -461,19 +462,18 @@ func parseColor(scanner *bufio.Scanner) (error, fColor) {
 	c.R = efc.convert(es.Text())
 	c.G = efc.convert(es.Text())
 	c.B = efc.convert(es.Text())
-	c.A = 1.0
 
-	nextTok := es.Text()
-	if nextTok != ">" {
-		c.A = 1 - efc.convert(nextTok)
-		nextTok = es.Text()
+	if format == "rgb" {
+		c.A = 1.0
+	} else {
+		c.A = 1.0 - efc.convert(es.Text())
 	}
 
 	if efc.err != nil {
 		return efc.err, c
 	}
 
-	if nextTok != ">" {
+	if es.Text() != ">" {
 		return errors.New("Unterminated Vector"), c
 	}
 
