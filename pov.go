@@ -389,7 +389,7 @@ func parsePoint(scanner *bufio.Scanner) (error, Point3D) {
 	}
 
 	if es.Text() != ">" {
-		return errors.New("Unterminated Vector"), pt
+		return errors.New("Unterminated Point"), pt
 	}
 
 	if es.err != nil {
@@ -449,7 +449,6 @@ func parsePigment(scanner *bufio.Scanner) (error, fColor) {
 
 func parseColor(scanner *bufio.Scanner) (error, fColor) {
 	c := fColor{}
-	format := scanner.Text()
 	es := errScanner{scanner: scanner, err: nil}
 	text := es.Text()
 
@@ -462,19 +461,20 @@ func parseColor(scanner *bufio.Scanner) (error, fColor) {
 	c.R = efc.convert(es.Text())
 	c.G = efc.convert(es.Text())
 	c.B = efc.convert(es.Text())
+	c.A = 1.0
 
-	if format == "rgb" {
-		c.A = 1.0
-	} else {
-		c.A = 1.0 - efc.convert(es.Text())
+	nextTok := es.Text()
+	if nextTok != ">" {
+		c.A = 1 - efc.convert(nextTok)
+		nextTok = es.Text()
 	}
 
 	if efc.err != nil {
 		return efc.err, c
 	}
 
-	if es.Text() != ">" {
-		return errors.New("Unterminated Vector"), c
+	if nextTok != ">" {
+		return errors.New("Unterminated Color"), c
 	}
 
 	if es.err != nil {

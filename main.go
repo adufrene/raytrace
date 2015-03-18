@@ -15,8 +15,8 @@ var (
 	fileDir = os.Getenv("HOME") + "/Downloads/"
 	ext     = ".jpg"
 
-	imgWidth  = 640
-	imgHeight = 480
+	imgWidth  = 800
+	imgHeight = 600
 	//	imgWidth  = 20
 	//	imgHeight = 14
 
