@@ -34,7 +34,7 @@ var (
 func main() {
 	args := os.Args[1:]
 	if len(args) == 0 {
-		fmt.Println("missing .pov file argument")
+		fmt.Println("Usage:", os.Args[0], "<path-to-pov-file>")
 		return
 	}
 
