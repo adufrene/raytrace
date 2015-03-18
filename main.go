@@ -12,7 +12,7 @@ import (
 var (
 	/* For chromebook, save to downloads so file can be viewed from chromeos */
 	//	filename = os.Getenv("HOME") + "/Downloads/trace.png"
-	filename = "trace.png"
+	filename = "rtrace.png"
 
 	imgWidth  = 640
 	imgHeight = 480
@@ -38,6 +38,7 @@ func main() {
 	}
 
 	povFile, err := os.Open(args[0])
+	defer povFile.Close()
 	if err == nil {
 		err = parsePOV(povFile)
 	}
@@ -53,7 +54,7 @@ func main() {
 
 	xStart := eye.location.Translate(eye.right.Scale(-1))
 	yStart := eye.location.Translate(eye.up.Scale(-1))
-	imgPlane := eye.lookAt.Sub(eye.location).Normalize().Scale(2)
+	imgPlane := eye.lookAt.Sub(eye.location).Normalize()
 
 	currX := xStart
 	for x := 0; x < imgWidth; x++ {

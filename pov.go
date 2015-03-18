@@ -528,21 +528,22 @@ func scanPOV(data []byte, atEOF bool) (advance int, token []byte, err error) {
 
 func (obj *object) finishObject(scanner *bufio.Scanner) error {
 	var err error
-	var vec Vector3D
+	// Ignore transformations for now
+	//	var vec Vector3D
 	for scanner.Scan() {
 		switch scanner.Text() {
 		case "translate":
-			err, vec = parseVector(scanner)
-			obj.transforms = obj.transforms.Mul4(mgl64.Translate3D(vec.X, vec.Y, vec.Z))
+			err, _ = parseVector(scanner)
+			//			obj.transforms = mgl64.Translate3D(vec.X, vec.Y, vec.Z).Mul4(obj.transforms)
 		case "rotate":
-			err, vec = parseVector(scanner)
-			obj.transforms = obj.transforms.Mul4(
-				mgl64.HomogRotate3DZ(degToRad * vec.Z).Mul4(
-					mgl64.HomogRotate3DY(degToRad * vec.Y)).Mul4(
-					mgl64.HomogRotate3DX(degToRad * vec.X)))
+			err, _ = parseVector(scanner)
+			//			obj.transforms = mgl64.HomogRotate3DZ(degToRad * vec.Z).Mul4(
+			//				mgl64.HomogRotate3DY(degToRad * vec.Y)).Mul4(
+			//				mgl64.HomogRotate3DX(degToRad * vec.X)).Mul4(
+			//				obj.transforms)
 		case "scale":
-			err, vec = parseVector(scanner)
-			obj.transforms = obj.transforms.Mul4(mgl64.Scale3D(vec.X, vec.Y, vec.Z))
+			err, _ = parseVector(scanner)
+			//			obj.transforms = mgl64.Scale3D(vec.X, vec.Y, vec.Z).Mul4(obj.transforms)
 		case "pigment":
 			err, obj.pigment = parsePigment(scanner)
 		case "finish":

@@ -12,7 +12,7 @@ pigment { color rgb <1.0, 0.1, 1.0>}
 finish {ambient 0.2 diffuse 0.4 specular 0.5 roughness 0.05}
 scale <1, 2, 1>
 rotate <0, 0, 25>
-translate <-1.2, 0 ,0>
+translate <-0.2, 0, 0>
 }
 
 sphere { <0, 0, 0>, 2
@@ -20,10 +20,10 @@ pigment { color rgb <1.0, 0.1, 1.0>}
 finish {ambient 0.2 diffuse 0.4 specular 0.5 roughness 0.05}
 scale <1, 2, 1>
 rotate <0, 0, -25>
-//translate <1.2, 0, 0>
+translate <0.2, 0, 1>
 }
 
 plane {<0, 1, 0>, -4      
-pigment {color rgb <0.6, 0.2, 1.0>}
+pigment {color rgb <0.6, 0.2, 0.3>}
 finish {ambient 0.3 diffuse 0.8 specular 0.8 roughness 0.001 reflection 0.5}
 }
