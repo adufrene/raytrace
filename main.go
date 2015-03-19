@@ -166,27 +166,27 @@ func castRay(ray Ray, depth, currObj int) (bool, fColor) {
 				pxlClr = pxlClr.Add(light.color.Mult(obj.Color().
 					Scale(obj.Finish().ambient)))
 			}
-			normal := obj.Normal(interPt)
-			if obj.Finish().reflection > 0 {
-				reflection := ray.Direction.Sub(normal.Scale(2 * ray.Direction.Dot(normal)))
-				if reflect, color := castRay(Ray{interPt, reflection.Normalize()}, depth, ndx); reflect {
-					pxlClr = pxlClr.Add(color.Scale(obj.Finish().reflection))
-				}
+		}
+		normal := obj.Normal(interPt)
+		if obj.Finish().reflection > 0 {
+			reflection := ray.Direction.Sub(normal.Scale(2 * ray.Direction.Dot(normal)))
+			if reflect, color := castRay(Ray{interPt, reflection.Normalize()}, depth, ndx); reflect {
+				pxlClr = pxlClr.Add(color.Scale(obj.Finish().reflection))
 			}
-			if obj.Finish().refraction > 0 {
-				// Assuming non object material is air w/ ior=1
-				var internal bool
-				var refractRay Ray
-				//					internal, refractRay = calcRefractRay(ray, obj, origPt, 1, 1)
-				if ray.Direction.Dot(normal) > 0 { // We are exiting the object
-					internal, refractRay = calcRefractRay(ray, obj, interPt, obj.Finish().ior, 1)
-				} else { // We are entering the object
-					internal, refractRay = calcRefractRay(ray, obj, interPt, 1, obj.Finish().ior)
-				}
-				if !internal {
-					if refract, color := castRay(refractRay, depth, ndx); refract {
-						pxlClr = pxlClr.Add(color.Scale(obj.Finish().refraction))
-					}
+		}
+		if obj.Finish().refraction > 0 {
+			// Assuming non object material is air w/ ior=1
+			var internal bool
+			var refractRay Ray
+			//					internal, refractRay = calcRefractRay(ray, obj, origPt, 1, 1)
+			if ray.Direction.Dot(normal) > 0 { // We are exiting the object
+				internal, refractRay = calcRefractRay(ray, obj, interPt, obj.Finish().ior, 1)
+			} else { // We are entering the object
+				internal, refractRay = calcRefractRay(ray, obj, interPt, 1, obj.Finish().ior)
+			}
+			if !internal {
+				if refract, color := castRay(refractRay, depth, ndx); refract {
+					pxlClr = pxlClr.Add(color.Scale(obj.Finish().refraction))
 				}
 			}
 		}

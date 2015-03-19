@@ -101,12 +101,15 @@ func (c fColor) RGBA() (r, g, b, a uint32) {
 		uint32(math.Min(c.G*c.A*math.MaxUint16, math.MaxUint16)),
 		uint32(math.Min(c.B*c.A*math.MaxUint16, math.MaxUint16)),
 		uint32(math.Min(c.A*math.MaxUint16, math.MaxUint16))
+}
 
+func (c fColor) rgba() (r, g, b, a float64) {
+	return c.A * c.R, c.A * c.G, c.A * c.B, c.A
 }
 
 func (c fColor) Add(clr fColor) fColor {
-	r, g, b, a := clr.R, clr.G, clr.B, clr.A
-	fr, fg, fb, fa := c.R, c.G, c.B, c.A
+	r, g, b, a := clr.rgba()
+	fr, fg, fb, fa := c.rgba()
 	return fColor{R: fr + r,
 		G: fg + g,
 		B: fb + b,
@@ -114,8 +117,8 @@ func (c fColor) Add(clr fColor) fColor {
 }
 
 func (c fColor) Mult(clr fColor) fColor {
-	r, g, b, a := clr.R, clr.G, clr.B, clr.A
-	fr, fg, fb, fa := c.R, c.G, c.B, c.A
+	r, g, b, a := clr.rgba()
+	fr, fg, fb, fa := c.rgba()
 	return fColor{R: fr * r,
 		G: fg * g,
 		B: fb * b,
