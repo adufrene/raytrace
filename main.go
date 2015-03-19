@@ -2,18 +2,22 @@ package main
 
 import (
 	"fmt"
-	//	"github.com/go-gl/mathgl/mgl64"
 	"image"
-	"image/jpeg"
+	//	"image/jpeg"
+	"image/png"
 	"math"
 	"os"
+	"runtime"
+	"strconv"
 	"strings"
+	"sync"
 )
 
 var (
 	/* For chromebook, save to downloads so file can be viewed from chromeos */
 	fileDir = os.Getenv("HOME") + "/Downloads/"
-	ext     = ".jpg"
+	//	ext     = ".jpg"
+	ext = ".png"
 
 	imgWidth  = 800
 	imgHeight = 600
@@ -28,14 +32,55 @@ var (
 
 	bkgndColor = black // fColor{R: 0.2706, G: 0.3137, B: 0.3294, A: 1.0}
 
-	MAX_DEPTH = 7
+	MAX_DEPTH  = 7
+	numThreads int
 )
 
+type goArgs struct {
+	ray  Ray
+	x, y int
+}
+
 func main() {
+	povFile := processCmd()
+	if povFile == nil {
+		return
+	}
+	defer povFile.Close()
+	argsChan := make(chan goArgs, 4096)
+	img := image.NewRGBA(image.Rectangle{image.ZP, image.Point{imgWidth, imgHeight}})
+	wg := sync.WaitGroup{}
+	setupThreads(argsChan, &wg, img)
+
+	xTrans := eye.right.Scale(2 / float64(imgWidth))
+	yTrans := eye.up.Scale(2 / float64(imgHeight))
+
+	xStart := eye.location.Translate(eye.right.Scale(-1))
+	yStart := eye.location.Translate(eye.up.Scale(-1))
+	imgPlane := eye.lookAt.Sub(eye.location).Normalize().Scale(2)
+
+	currX := xStart.Translate(xTrans.Scale(0.5))
+	for x := 0; x < imgWidth; x++ {
+		currY := yStart.Translate(yTrans.Scale(0.5))
+		for y := imgHeight - 1; y >= 0; y-- {
+			view := eye.location.Translate(currX.Sub(eye.location)).
+				Translate(currY.Sub(eye.location)).Translate(imgPlane)
+			argsChan <- goArgs{CreateRay(eye.location, view), x, y}
+			currY = currY.Translate(yTrans)
+		}
+		currX = currX.Translate(xTrans)
+	}
+	close(argsChan)
+	wg.Wait()
+
+	writeFile(img)
+}
+
+func processCmd() *os.File {
 	args := os.Args[1:]
 	if len(args) == 0 {
 		fmt.Println("Usage:", os.Args[0], "<path-to-pov-file>")
-		return
+		return nil
 	}
 
 	filename := args[0]
@@ -46,33 +91,41 @@ func main() {
 		err = parsePOV(povFile)
 	}
 	if err != nil {
-		fmt.Println("Error:", err)
-		return
+		fmt.Println(err)
+		return nil
 	}
+	return povFile
+}
 
-	img := image.NewRGBA(image.Rectangle{image.ZP, image.Point{imgWidth, imgHeight}})
-
-	xTrans := eye.right.Scale(2 / float64(imgWidth))
-	yTrans := eye.up.Scale(2 / float64(imgHeight))
-
-	xStart := eye.location.Translate(eye.right.Scale(-1))
-	yStart := eye.location.Translate(eye.up.Scale(-1))
-	imgPlane := eye.lookAt.Sub(eye.location).Normalize().Scale(2)
-
-	currX := xStart
-	for x := 0; x < imgWidth; x++ {
-		currY := yStart
-		for y := imgHeight - 1; y >= 0; y-- {
-			view := eye.location.Translate(currX.Sub(eye.location)).
-				Translate(currY.Sub(eye.location)).Translate(imgPlane)
-			_, color := castRay(CreateRay(eye.location, view), 0)
-			img.Set(x, y, color)
-			currY = currY.Translate(yTrans)
+func setupThreads(channel chan goArgs, wg *sync.WaitGroup, img *image.RGBA) {
+	maxProcsString := os.Getenv("GOMAXPROCS")
+	if maxProcsString == "" {
+		numThreads = runtime.NumCPU()
+	} else {
+		numThreads64, err := strconv.ParseInt(maxProcsString, 10, 32)
+		if err != nil {
+			fmt.Println("Error:", err)
+			return
 		}
-		currX = currX.Translate(xTrans)
+		numThreads = int(numThreads64)
 	}
+	runtime.GOMAXPROCS(int(numThreads))
+	fmt.Println("Using", numThreads, "thread(s)")
 
-	splitString := strings.Split(filename, "/")
+	for i := 0; i < numThreads; i++ {
+		wg.Add(1)
+		go func() {
+			for arg := range channel {
+				_, color := castRay(arg.ray, MAX_DEPTH, -1)
+				img.Set(arg.x, arg.y, color)
+			}
+			wg.Done()
+		}()
+	}
+}
+
+func writeFile(img *image.RGBA) {
+	splitString := strings.Split(os.Args[1], "/")
 	name := splitString[len(splitString)-1]
 	if strings.HasSuffix(name, ".pov") {
 		dotSplit := strings.Split(name, ".")
@@ -88,53 +141,58 @@ func main() {
 		file.Close()
 	}()
 
-	err = jpeg.Encode(file, img, nil)
+	//	err = jpeg.Encode(file, img, nil)
+	err = png.Encode(file, img)
 	if err != nil {
 		panic(err)
 	}
 }
 
-func castRay(ray Ray, depth int) (bool, fColor) {
-	if depth > MAX_DEPTH {
+func castRay(ray Ray, depth, currObj int) (bool, fColor) {
+	depth--
+	if depth < 0 {
 		return false, bkgndColor
 	}
 
-	if count, t1, _, ndx := hitAnything(ray); count > 0 {
+	if hit, t, ndx := hitAnything(ray, currObj); hit {
 		obj := objects[ndx]
 		pxlClr := fColor{}
-		origPt := ray.PointAt(t1)
-		interPt := ray.PointAt(t1 - 0.01)
+		interPt := ray.PointAt(t)
 		for i := range lights {
 			light := lights[i]
 			if !isShadowed(interPt, light, ndx) {
 				pxlClr = pxlClr.Add(calcColor(obj, light, interPt, eye.location))
-				normal := obj.Normal(interPt)
-				if obj.Finish().reflection > 0 {
-					reflection := ray.Direction.Sub(normal.Scale(2 * ray.Direction.Dot(normal)))
-					if reflect, color := castRay(Ray{interPt, reflection.Normalize()}, depth+1); reflect {
-						pxlClr = pxlClr.Add(color.Scale(obj.Finish().reflection))
-					}
-				}
-				if obj.Finish().refraction > 0 {
-					// Assuming non object material is air w/ ior=1
-					var internal bool
-					var refractRay Ray
-					//					internal, refractRay = calcRefractRay(ray, obj, origPt, 1, 1)
-					if ray.Direction.Dot(normal) > 0 { // We are exiting the object
-						internal, refractRay = calcRefractRay(ray, obj, origPt, obj.Finish().ior, 1)
-					} else { // We are entering the object
-						internal, refractRay = calcRefractRay(ray, obj, origPt, 1, obj.Finish().ior)
-					}
-					if !internal {
-						if refract, color := castRay(refractRay, depth+1); refract {
-							pxlClr = pxlClr.Add(color.Scale(obj.Finish().refraction))
-						}
-					}
-				}
 			} else {
 				pxlClr = pxlClr.Add(light.color.Mult(obj.Color().
 					Scale(obj.Finish().ambient)))
 			}
+			normal := obj.Normal(interPt)
+			if obj.Finish().reflection > 0 {
+				reflection := ray.Direction.Sub(normal.Scale(2 * ray.Direction.Dot(normal)))
+				if reflect, color := castRay(Ray{interPt, reflection.Normalize()}, depth, ndx); reflect {
+					pxlClr = pxlClr.Add(color.Scale(obj.Finish().reflection))
+				}
+			}
+			if obj.Finish().refraction > 0 {
+				// Assuming non object material is air w/ ior=1
+				var internal bool
+				var refractRay Ray
+				//					internal, refractRay = calcRefractRay(ray, obj, origPt, 1, 1)
+				if ray.Direction.Dot(normal) > 0 { // We are exiting the object
+					internal, refractRay = calcRefractRay(ray, obj, interPt, obj.Finish().ior, 1)
+				} else { // We are entering the object
+					internal, refractRay = calcRefractRay(ray, obj, interPt, 1, obj.Finish().ior)
+				}
+				if !internal {
+					if refract, color := castRay(refractRay, depth, ndx); refract {
+						pxlClr = pxlClr.Add(color.Scale(obj.Finish().refraction))
+					}
+				}
+			}
+		}
+		if pxlClr.A < 1 {
+			_, nextClr := castRay(ray, depth, ndx)
+			pxlClr = pxlClr.Scale(pxlClr.A).Add(nextClr.Scale(1 - pxlClr.A))
 		}
 		return true, pxlClr
 	}
@@ -143,7 +201,6 @@ func castRay(ray Ray, depth int) (bool, fColor) {
 
 func calcRefractRay(initialRay Ray, obj castable, origPt Point3D,
 	n1, n2 float64) (internalReflection bool, refractRay Ray) {
-	// (n_1 ( d - n ( d . n)) / n_2) - (n * sqrt( 1 - ( n_1^2 ( 1 - ( d . n)^2) / n_2^2))
 	normal := obj.Normal(origPt)
 	dDotN := initialRay.Direction.Dot(normal)
 	sqrtComp := math.Pow(n1, 2) * (1 - math.Pow(dDotN, 2)) / math.Pow(n2, 2)
@@ -162,7 +219,7 @@ func isShadowed(pt Point3D, light light, objNdx int) bool {
 	r := CreateRay(pt, light.location)
 	for ndx := range objects {
 		if ndx != objNdx {
-			if count, _, _ := objects[ndx].Hit(r); count > 0 {
+			if hitObj, _ := objects[ndx].Hit(r); hitObj {
 				return true
 			}
 		}
@@ -170,12 +227,13 @@ func isShadowed(pt Point3D, light light, objNdx int) bool {
 	return false
 }
 
-func hitAnything(r Ray) (count uint8, t1, t2 float64, hitNdx int) {
-	t1 = math.MaxFloat64
+func hitAnything(r Ray, objNdx int) (hit bool, t float64, hitNdx int) {
+	t = math.MaxFloat64
 	for ndx := range objects {
-		if hitCount, hit1, hit2 := objects[ndx].Hit(r); hitCount > 0 && hit1 < t1 {
-			count, t1, t2 = hitCount, hit1, hit2
-			hitNdx = ndx
+		if ndx != objNdx {
+			if hitObj, hitTime := objects[ndx].Hit(r); hitObj && hitTime < t {
+				hit, t, hitNdx = true, hitTime, ndx
+			}
 		}
 	}
 	return
