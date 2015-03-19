@@ -153,11 +153,11 @@ func castRay(ray Ray, depth int) (bool, fColor) {
 		return false, bkgndColor
 	}
 
-	if count, t1, _, ndx := hitAnything(ray); count > 0 {
+	if hit, t, ndx := hitAnything(ray); hit {
 		obj := objects[ndx]
 		pxlClr := fColor{}
-		origPt := ray.PointAt(t1)
-		interPt := ray.PointAt(t1 - 0.01)
+		origPt := ray.PointAt(t)
+		interPt := ray.PointAt(t - 0.01)
 		for i := range lights {
 			light := lights[i]
 			if !isShadowed(interPt, light, ndx) {
@@ -216,7 +216,7 @@ func isShadowed(pt Point3D, light light, objNdx int) bool {
 	r := CreateRay(pt, light.location)
 	for ndx := range objects {
 		if ndx != objNdx {
-			if count, _, _ := objects[ndx].Hit(r); count > 0 {
+			if hitObj, _ := objects[ndx].Hit(r); hitObj {
 				return true
 			}
 		}
@@ -224,12 +224,11 @@ func isShadowed(pt Point3D, light light, objNdx int) bool {
 	return false
 }
 
-func hitAnything(r Ray) (count uint8, t1, t2 float64, hitNdx int) {
-	t1 = math.MaxFloat64
+func hitAnything(r Ray) (hit bool, t float64, hitNdx int) {
+	t = math.MaxFloat64
 	for ndx := range objects {
-		if hitCount, hit1, hit2 := objects[ndx].Hit(r); hitCount > 0 && hit1 < t1 {
-			count, t1, t2 = hitCount, hit1, hit2
-			hitNdx = ndx
+		if hitObj, hitTime := objects[ndx].Hit(r); hitObj && hitTime < t {
+			hit, t, hitNdx = true, hitTime, ndx
 		}
 	}
 	return

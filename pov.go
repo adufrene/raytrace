@@ -27,7 +27,7 @@ const (
 )
 
 type castable interface {
-	Hit(r Ray) (uint8, float64, float64)
+	Hit(r Ray) (bool, float64)
 	Color() fColor
 	Normal(pt Point3D) Vector3D
 	Finish() finish
@@ -601,7 +601,7 @@ func (obj object) transform(pt Point3D) Point3D {
 	return pt.Transform(obj.transforms)
 }
 
-func (s sphere) Hit(r Ray) (count uint8, t1, t2 float64) {
+func (s sphere) Hit(r Ray) (hitObj bool, t1 float64) {
 	/* get inverse sphere transform matrix, then apply to ray */
 	invM := s.transforms.Inv()
 	transRay := Ray{Origin: r.Origin.Transform(invM), Direction: r.Direction.Transform(invM).Normalize()}
@@ -619,19 +619,17 @@ func (s sphere) Hit(r Ray) (count uint8, t1, t2 float64) {
 	if dtmt != 0 {
 		sqrt := math.Sqrt(dtmt)
 		t1 = (-B + sqrt) / divisor
-		t2 = (-B - sqrt) / divisor
+		t2 := (-B - sqrt) / divisor
 		if t2 < t1 {
-			temp := t1
 			t1 = t2
-			t2 = temp
 		}
 		if t1 < 0 {
-			count = 0
+			hitObj = false
 		} else {
-			count = 2
+			hitObj = true
 		}
 	} else {
-		count = 1
+		hitObj = true
 		t1 = -B / divisor
 	}
 	return
@@ -641,12 +639,12 @@ func (s sphere) Normal(pt Point3D) Vector3D {
 	return pt.Sub(s.transform(s.center)).Normalize()
 }
 
-func (p plane) Hit(r Ray) (count uint8, t1, t2 float64) {
+func (p plane) Hit(r Ray) (hitObj bool, t1 float64) {
 	vDotN := r.Direction.Dot(p.normal)
 	if vDotN != 0 {
 		t1 = -(r.Origin.AsVector().Dot(p.normal) - p.distance) / vDotN
 		if t1 > 0 {
-			count = 1
+			hitObj = true
 		}
 	}
 	return
