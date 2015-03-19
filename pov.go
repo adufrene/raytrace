@@ -126,7 +126,7 @@ func (c fColor) Scale(factor float64) fColor {
 	return fColor{R: c.R * factor,
 		G: c.G * factor,
 		B: c.B * factor,
-		A: math.Max(1.0, c.A*factor)}
+		A: c.A}
 }
 
 func (es *errScanner) Text() string {
