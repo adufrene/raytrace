@@ -16,7 +16,7 @@ light_source {<0, 500, 0> color rgb <.5, .5, .5>}
 
 sphere { <0, 1, 5>, 1
    pigment { color rgb <.9, .9, .97, .9>}
-   finish {ambient 0.2 diffuse .5 specular .9 roughness .1 reflection 0.9 refraction 1 ior .9}
+   finish {ambient 0.2 diffuse .5 specular .9 roughness .1 reflection 0.9 } // refraction 1 ior .9}
    translate <0, 0, 0>
 }
 

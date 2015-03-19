@@ -42,52 +42,15 @@ type goArgs struct {
 }
 
 func main() {
-	args := os.Args[1:]
-	if len(args) == 0 {
-		fmt.Println("Usage:", os.Args[0], "<path-to-pov-file>")
+	povFile := processCmd()
+	if povFile == nil {
 		return
 	}
-
-	filename := args[0]
-
-	povFile, err := os.Open(filename)
 	defer povFile.Close()
-	if err == nil {
-		err = parsePOV(povFile)
-	}
-	if err != nil {
-		fmt.Println("Error:", err)
-		return
-	}
-
-	maxProcsString := os.Getenv("GOMAXPROCS")
-	if maxProcsString == "" {
-		numThreads = runtime.NumCPU()
-	} else {
-		numThreads64, err := strconv.ParseInt(maxProcsString, 10, 32)
-		if err != nil {
-			fmt.Println("Error:", err)
-			return
-		}
-		numThreads = int(numThreads64)
-	}
-	runtime.GOMAXPROCS(int(numThreads))
-	fmt.Println("Using", numThreads, "thread(s)")
-
 	argsChan := make(chan goArgs, 4096)
-	wg := sync.WaitGroup{}
-
 	img := image.NewRGBA(image.Rectangle{image.ZP, image.Point{imgWidth, imgHeight}})
-	for i := 0; i < numThreads; i++ {
-		wg.Add(1)
-		go func() {
-			for arg := range argsChan {
-				_, color := castRay(arg.ray, 0)
-				img.Set(arg.x, arg.y, color)
-			}
-			wg.Done()
-		}()
-	}
+	wg := sync.WaitGroup{}
+	setupThreads(argsChan, &wg, img)
 
 	xTrans := eye.right.Scale(2 / float64(imgWidth))
 	yTrans := eye.up.Scale(2 / float64(imgHeight))
@@ -108,8 +71,61 @@ func main() {
 		currX = currX.Translate(xTrans)
 	}
 	close(argsChan)
+	wg.Wait()
 
-	splitString := strings.Split(filename, "/")
+	writeFile(img)
+}
+
+func processCmd() *os.File {
+	args := os.Args[1:]
+	if len(args) == 0 {
+		fmt.Println("Usage:", os.Args[0], "<path-to-pov-file>")
+		return nil
+	}
+
+	filename := args[0]
+
+	povFile, err := os.Open(filename)
+	defer povFile.Close()
+	if err == nil {
+		err = parsePOV(povFile)
+	}
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
+	return povFile
+}
+
+func setupThreads(channel chan goArgs, wg *sync.WaitGroup, img *image.RGBA) {
+	maxProcsString := os.Getenv("GOMAXPROCS")
+	if maxProcsString == "" {
+		numThreads = runtime.NumCPU()
+	} else {
+		numThreads64, err := strconv.ParseInt(maxProcsString, 10, 32)
+		if err != nil {
+			fmt.Println("Error:", err)
+			return
+		}
+		numThreads = int(numThreads64)
+	}
+	runtime.GOMAXPROCS(int(numThreads))
+	fmt.Println("Using", numThreads, "thread(s)")
+
+	for i := 0; i < numThreads; i++ {
+		wg.Add(1)
+		go func() {
+			for arg := range channel {
+				_, color := castRay(arg.ray, 0)
+				img.Set(arg.x, arg.y, color)
+			}
+			wg.Done()
+		}()
+	}
+}
+
+func writeFile(img *image.RGBA) {
+	splitString := strings.Split(os.Args[1], "/")
 	name := splitString[len(splitString)-1]
 	if strings.HasSuffix(name, ".pov") {
 		dotSplit := strings.Split(name, ".")
@@ -125,7 +141,6 @@ func main() {
 		file.Close()
 	}()
 
-	wg.Wait()
 	//	err = jpeg.Encode(file, img, nil)
 	err = png.Encode(file, img)
 	if err != nil {
