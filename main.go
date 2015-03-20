@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"image"
-	"image/png"
+	"image/jpeg"
 	"math"
 	"os"
 	"runtime"
@@ -14,8 +14,8 @@ import (
 
 var (
 	/* For chromebook, save to downloads so file can be viewed from chromeos */
-	fileDir = os.Getenv("HOME") + "/Downloads/"
-	ext     = ".png"
+	fileDir = os.Getenv("TRACE_DIR")
+	ext     = ".jpg"
 
 	imgWidth  = 800
 	imgHeight = 600
@@ -131,7 +131,7 @@ func writeFile(img *image.RGBA) {
 		file.Close()
 	}()
 
-	err = png.Encode(file, img)
+	err = jpeg.Encode(file, img, nil)
 	if err != nil {
 		panic(err)
 	}
