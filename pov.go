@@ -246,22 +246,22 @@ func parseCamera(scanner *bufio.Scanner) error {
 		token := scanner.Text()
 		switch token {
 		case "location":
-			err, eye.location = parsePoint(scanner)
+			eye.location, err = parsePoint(scanner)
 			if err != nil {
 				return err
 			}
 		case "up":
-			err, eye.up = parseVector(scanner)
+			eye.up, err = parseVector(scanner)
 			if err != nil {
 				return err
 			}
 		case "right":
-			err, eye.right = parseVector(scanner)
+			eye.right, err = parseVector(scanner)
 			if err != nil {
 				return err
 			}
 		case "look_at":
-			err, eye.lookAt = parsePoint(scanner)
+			eye.lookAt, err = parsePoint(scanner)
 			if err != nil {
 				return err
 			}
@@ -281,7 +281,7 @@ func parseLight(scanner *bufio.Scanner) error {
 
 	l := light{}
 	var err error
-	err, l.location = parsePoint(scanner)
+	l.location, err = parsePoint(scanner)
 	if err != nil {
 		return err
 	}
@@ -290,7 +290,7 @@ func parseLight(scanner *bufio.Scanner) error {
 		!scanner.Scan() || scanner.Text() != "rgb" {
 		return errors.New("error parsing light")
 	}
-	err, temp := parseVector(scanner)
+	temp, err := parseVector(scanner)
 	if err != nil {
 		return err
 	}
@@ -314,7 +314,7 @@ func parseSphere(scanner *bufio.Scanner) error {
 	}
 	s := makeSphere()
 	var err error
-	err, s.center = parsePoint(scanner)
+	s.center, err = parsePoint(scanner)
 	if err != nil {
 		return err
 	}
@@ -343,7 +343,7 @@ func parsePlane(scanner *bufio.Scanner) error {
 	}
 	p := makePlane()
 	var err error
-	err, p.normal = parseVector(scanner)
+	p.normal, err = parseVector(scanner)
 	if err != nil {
 		return err
 	}
@@ -373,12 +373,12 @@ func parseFinish(scanner *bufio.Scanner) error {
 	return skipBlock(scanner)
 }
 
-func parsePoint(scanner *bufio.Scanner) (error, Point3D) {
+func parsePoint(scanner *bufio.Scanner) (Point3D, error) {
 	pt := Point3D{}
 	es := errScanner{scanner: scanner, err: nil}
 	text := es.Text()
 	if text != "<" {
-		return errors.New("Expected vector, found: '" + text + "'"), pt
+		return pt, errors.New("Expected vector, found: '" + text + "'")
 	}
 
 	efc := errFloatConv{}
@@ -388,23 +388,23 @@ func parsePoint(scanner *bufio.Scanner) (error, Point3D) {
 	pt.Z = efc.convert(es.Text())
 
 	if efc.err != nil {
-		return efc.err, pt
+		return pt, efc.err
 	}
 
 	if es.Text() != ">" {
-		return errors.New("Unterminated Point"), pt
+		return pt, errors.New("Unterminated Point")
 	}
 
 	if es.err != nil {
-		return es.err, pt
+		return pt, es.err
 	}
 
-	return nil, pt
+	return pt, nil
 }
 
-func parseVector(scanner *bufio.Scanner) (error, Vector3D) {
-	err, pt := parsePoint(scanner)
-	return err, pt.AsVector()
+func parseVector(scanner *bufio.Scanner) (Vector3D, error) {
+	pt, err := parsePoint(scanner)
+	return pt.AsVector(), err
 }
 
 func parseScale(scanner *bufio.Scanner) (error, Vector3D) {
@@ -437,26 +437,27 @@ func parseScale(scanner *bufio.Scanner) (error, Vector3D) {
 	return nil, vec
 }
 
-func parsePigment(scanner *bufio.Scanner) (error, fColor) {
+func parsePigment(scanner *bufio.Scanner) (fColor, error) {
+	// check and skip for { color rgb[f]
 	if !scanner.Scan() || scanner.Text() != "{" ||
 		!scanner.Scan() || scanner.Text() != "color" ||
 		!scanner.Scan() || (scanner.Text() != "rgb" && scanner.Text() != "rgbf") {
-		return errors.New("Invalid pigment structure"), fColor{}
+		return fColor{}, errors.New("Invalid pigment structure")
 	}
-	err, c := parseColor(scanner)
+	c, err := parseColor(scanner)
 	if err == nil && (!scanner.Scan() || scanner.Text() != "}") {
 		err = errors.New("Invalid pigment structure")
 	}
-	return err, c
+	return c, err
 }
 
-func parseColor(scanner *bufio.Scanner) (error, fColor) {
+func parseColor(scanner *bufio.Scanner) (fColor, error) {
 	c := fColor{}
 	es := errScanner{scanner: scanner, err: nil}
 	text := es.Text()
 
 	if text != "<" {
-		return errors.New("Expected color, found: '" + text + "'"), c
+		return c, errors.New("Expected color, found: '" + text + "'")
 	}
 
 	efc := errFloatConv{}
@@ -473,18 +474,18 @@ func parseColor(scanner *bufio.Scanner) (error, fColor) {
 	}
 
 	if efc.err != nil {
-		return efc.err, c
+		return c, efc.err
 	}
 
 	if nextTok != ">" {
-		return errors.New("Unterminated Color"), c
+		return c, errors.New("Unterminated Color")
 	}
 
 	if es.err != nil {
-		return es.err, c
+		return c, es.err
 	}
 
-	return nil, c
+	return c, nil
 }
 
 // Scanner split function to parse pov vector, calling scan will scan a single
@@ -536,19 +537,19 @@ func (obj *object) finishObject(scanner *bufio.Scanner) error {
 	for scanner.Scan() {
 		switch scanner.Text() {
 		case "translate":
-			err, _ = parseVector(scanner)
+			_, err = parseVector(scanner)
 			//			obj.transforms = mgl64.Translate3D(vec.X, vec.Y, vec.Z).Mul4(obj.transforms)
 		case "rotate":
-			err, _ = parseVector(scanner)
+			_, err = parseVector(scanner)
 			//			obj.transforms = mgl64.HomogRotate3DZ(degToRad * vec.Z).Mul4(
 			//				mgl64.HomogRotate3DY(degToRad * vec.Y)).Mul4(
 			//				mgl64.HomogRotate3DX(degToRad * vec.X)).Mul4(
 			//				obj.transforms)
 		case "scale":
-			err, _ = parseVector(scanner)
+			_, err = parseVector(scanner)
 			//			obj.transforms = mgl64.Scale3D(vec.X, vec.Y, vec.Z).Mul4(obj.transforms)
 		case "pigment":
-			err, obj.pigment = parsePigment(scanner)
+			obj.pigment, err = parsePigment(scanner)
 		case "finish":
 			err = obj.parseFinish(scanner)
 		case "}":

@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"image"
-	//	"image/jpeg"
 	"image/png"
 	"math"
 	"os"
@@ -16,21 +15,12 @@ import (
 var (
 	/* For chromebook, save to downloads so file can be viewed from chromeos */
 	fileDir = os.Getenv("HOME") + "/Downloads/"
-	//	ext     = ".jpg"
-	ext = ".png"
+	ext     = ".png"
 
 	imgWidth  = 800
 	imgHeight = 600
-	//	imgWidth  = 20
-	//	imgHeight = 14
 
-	red   = fColor{R: 1.0, G: 0.0, B: 0.0, A: 1.0}
-	green = fColor{R: 0.0, G: 0.0, B: 0.0, A: 1.0}
-	blue  = fColor{R: 0.0, G: 0.0, B: 1.0, A: 1.0}
-	white = fColor{R: 1.0, G: 1.0, B: 1.0, A: 1.0}
-	black = fColor{R: 0.0, G: 0.0, B: 0.0, A: 1.0}
-
-	bkgndColor = black // fColor{R: 0.2706, G: 0.3137, B: 0.3294, A: 1.0}
+	bkgndColor = fColor{R: 0.0, G: 0.0, B: 0.0, A: 1.0}
 
 	MAX_DEPTH  = 7
 	numThreads int
@@ -141,7 +131,6 @@ func writeFile(img *image.RGBA) {
 		file.Close()
 	}()
 
-	//	err = jpeg.Encode(file, img, nil)
 	err = png.Encode(file, img)
 	if err != nil {
 		panic(err)
@@ -178,7 +167,6 @@ func castRay(ray Ray, depth, currObj int) (bool, fColor) {
 			// Assuming non object material is air w/ ior=1
 			var internal bool
 			var refractRay Ray
-			//					internal, refractRay = calcRefractRay(ray, obj, origPt, 1, 1)
 			if ray.Direction.Dot(normal) > 0 { // We are exiting the object
 				internal, refractRay = calcRefractRay(ray, obj, interPt, obj.Finish().ior, 1)
 			} else { // We are entering the object
